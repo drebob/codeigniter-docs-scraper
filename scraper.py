@@ -3,12 +3,14 @@ from bs4 import BeautifulSoup
 import os
 import json
 from urllib.parse import urljoin
+from collections import deque
 
 class CodeIgniterScraper:
     def __init__(self, base_url='https://codeigniter.com/user_guide/'):
         self.base_url = base_url
         self.visited = set()
         self.docs = {}
+        self.queue = deque()
 
     def get_page_content(self, url):
         try:
@@ -29,7 +31,7 @@ class CodeIgniterScraper:
         # Extract text content
         text_content = content.get_text(separator='\n', strip=True)
         
-        # Extract links for further crawling
+        # Extract links
         links = []
         for a in content.find_all('a', href=True):
             href = a['href']
@@ -44,26 +46,30 @@ class CodeIgniterScraper:
             'links': links
         }
 
-    def crawl(self, url=None):
-        if url is None:
-            url = self.base_url
-        
-        if url in self.visited:
-            return
-        
-        self.visited.add(url)
-        print(f"Crawling: {url}")
+    def crawl(self):
+        self.queue.append(self.base_url)
 
-        html = self.get_page_content(url)
-        if not html:
-            return
-
-        parsed = self.parse_page(url, html)
-        if parsed:
-            self.docs[url] = parsed['content']
+        while self.queue:
+            url = self.queue.popleft()
             
-            for link in parsed['links']:
-                self.crawl(link)
+            if url in self.visited:
+                continue
+            
+            self.visited.add(url)
+            print(f"Crawling: {url}")
+
+            html = self.get_page_content(url)
+            if not html:
+                continue
+
+            parsed = self.parse_page(url, html)
+            if parsed:
+                self.docs[url] = parsed['content']
+                
+                # Add new links to queue
+                for link in parsed['links']:
+                    if link not in self.visited:
+                        self.queue.append(link)
 
     def save_docs(self, output_dir='docs'):
         os.makedirs(output_dir, exist_ok=True)
