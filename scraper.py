@@ -11,6 +11,24 @@ class CodeIgniterScraper:
         self.visited = set()
         self.docs = {}
         self.queue = deque()
+        self.output_dir = 'docs'
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def save_page(self, url, content):
+        # Save individual markdown file
+        filename = url.replace(self.base_url, '').replace('/', '_')
+        if not filename:
+            filename = 'index'
+        filename = f"{filename}.md"
+        
+        filepath = os.path.join(self.output_dir, filename)
+        with open(filepath, 'w') as f:
+            f.write(content)
+
+        # Update JSON file
+        self.docs[url] = content
+        with open(os.path.join(self.output_dir, 'documentation.json'), 'w') as f:
+            json.dump(self.docs, f, indent=2)
 
     def get_page_content(self, url):
         try:
@@ -28,10 +46,8 @@ class CodeIgniterScraper:
         if not content:
             return None
 
-        # Extract text content
         text_content = content.get_text(separator='\n', strip=True)
         
-        # Extract links
         links = []
         for a in content.find_all('a', href=True):
             href = a['href']
@@ -64,34 +80,15 @@ class CodeIgniterScraper:
 
             parsed = self.parse_page(url, html)
             if parsed:
-                self.docs[url] = parsed['content']
+                self.save_page(url, parsed['content'])
                 
-                # Add new links to queue
                 for link in parsed['links']:
                     if link not in self.visited:
                         self.queue.append(link)
 
-    def save_docs(self, output_dir='docs'):
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Save raw JSON
-        with open(os.path.join(output_dir, 'documentation.json'), 'w') as f:
-            json.dump(self.docs, f, indent=2)
-        
-        # Save individual markdown files
-        for url, content in self.docs.items():
-            filename = url.replace(self.base_url, '').replace('/', '_')
-            if not filename:
-                filename = 'index'
-            filename = f"{filename}.md"
-            
-            with open(os.path.join(output_dir, filename), 'w') as f:
-                f.write(content)
-
 def main():
     scraper = CodeIgniterScraper()
     scraper.crawl()
-    scraper.save_docs()
 
 if __name__ == "__main__":
     main()
